@@ -225,32 +225,23 @@ def run(
                         if (
                             p1 is not None
                             and p1.has_quiz
-                            and p1.quiz_instance_id is not None
                             and class_day is not None
                             and config.SEMESTER_START_WEEK is not None
                         ):
-                            quizzes = client.get_quizzes_by_course(course["id"])
-                            time.sleep(_API_RATE_DELAY)
-
-                            # Cari data quiz P1 berdasarkan instance ID
-                            p1_quiz = next(
-                                (q for q in quizzes if q.get("id") == p1.quiz_instance_id),
-                                None,
-                            )
-                            if p1_quiz:
+                            if p1.timeopen is not None and p1.timeclose is not None:
                                 exp_open, exp_close = compute_expected_dates(
                                     class_day, 1, config.SEMESTER_START_WEEK
                                 )
                                 result["quiz_jadwal_p1"] = validate_quiz_dates(
-                                    p1_quiz.get("timeopen"),
-                                    p1_quiz.get("timeclose"),
+                                    p1.timeopen,
+                                    p1.timeclose,
                                     exp_open,
                                     exp_close,
                                 )
                             else:
                                 logger.debug(
-                                    "Quiz instance %s tidak ditemukan di course %s",
-                                    p1.quiz_instance_id, course["id"]
+                                    "Quiz P1 tidak memiliki data timeopen/timeclose di course %s",
+                                    course["id"]
                                 )
 
                 except MoodleAPIError as exc:

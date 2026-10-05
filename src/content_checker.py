@@ -38,7 +38,9 @@ class MeetingContent:
     has_ppt: bool = False
     has_video: bool = False
     has_quiz: bool = False
-    quiz_instance_id: int | None = None          # instance ID quiz untuk API lookup
+    quiz_instance_id: int | None = None          # instance ID quiz
+    timeopen: int | None = None                  # epoch timestamp buka
+    timeclose: int | None = None                 # epoch timestamp tutup
     modules_raw: list[dict] = field(default_factory=list)
 
     @property
@@ -316,8 +318,25 @@ def parse_sections(sections_raw: list[dict]) -> dict[int, MeetingContent]:
                 logger.debug("P%d Video: %s", pertemuan, module.get("name"))
             if not meeting.has_quiz and detect_quiz(module):
                 meeting.has_quiz = True
-                meeting.quiz_instance_id = module.get("instance")  # untuk API lookup jadwal
-                logger.debug("P%d Quiz: %s (instance=%s)", pertemuan, module.get("name"), meeting.quiz_instance_id)
+                meeting.quiz_instance_id = module.get("instance")
+                
+                # Coba ambil timeopen/timeclose dari customdata
+                custom_data_str = module.get("customdata")
+                if custom_data_str:
+                    import json
+                    try:
+                        cdata = json.loads(custom_data_str)
+                        if "timeopen" in cdata:
+                            meeting.timeopen = int(cdata["timeopen"])
+                        if "timeclose" in cdata:
+                            meeting.timeclose = int(cdata["timeclose"])
+                    except (ValueError, TypeError):
+                        pass
+                
+                logger.debug(
+                    "P%d Quiz: %s (open=%s, close=%s)", 
+                    pertemuan, module.get("name"), meeting.timeopen, meeting.timeclose
+                )
 
         meetings[pertemuan] = meeting
 
