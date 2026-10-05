@@ -206,6 +206,28 @@ class MoodleClient:
 
         return result
 
+    def get_quizzes_by_course(self, course_id: int) -> list[dict]:
+        """
+        Ambil daftar quiz dalam sebuah course beserta timeopen & timeclose.
+
+        Return: list of dicts dengan field: id, name, timeopen, timeclose
+                (list kosong jika course tidak punya quiz atau terjadi error)
+        """
+        logger.debug("get_quizzes_by_course: course_id=%d", course_id)
+        try:
+            result = self._request(
+                "mod_quiz_get_quizzes_by_courses",
+                {"courseids[0]": course_id},
+            )
+        except MoodleAPIError as exc:
+            logger.warning("get_quizzes_by_course error (course_id=%d): %s", course_id, exc)
+            return []
+
+        if isinstance(result, _NotFound) or not isinstance(result, dict):
+            return []
+
+        return result.get("quizzes", [])
+
     def close(self) -> None:
         """Tutup HTTP session."""
         self._session.close()

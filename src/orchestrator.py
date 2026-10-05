@@ -36,7 +36,7 @@ from rich.progress import (
 )
 from rich.table import Table
 
-from src.content_checker import check_course_content
+from src.content_checker import check_course_content, parse_sections
 from src.course_matcher import (
     STATUS_BELUM_KRS,
     STATUS_ERROR,
@@ -50,6 +50,7 @@ from src.excel_reader import (
 )
 from src.moodle_api import MoodleAPIError, MoodleClient, NOT_FOUND
 from src.report_generator import generate_report
+from src.quiz_schedule import parse_class_day, compute_expected_dates, validate_quiz_dates
 from src import config
 
 logger = logging.getLogger(__name__)
@@ -154,6 +155,7 @@ def run(
                     "match_error": None,
                     "meetings": {},
                     "detail_kekurangan": "",
+                    "quiz_jadwal_p1": None,   # None=tidak dicek, True=sesuai, False=salah
                     "last_check": now_str,
                 }
 
@@ -196,7 +198,6 @@ def run(
                         result["lms_status"] = STATUS_NOT_FOUND
                         result["detail_kekurangan"] = "-"
                     else:
-                        from src.content_checker import parse_sections
                         meetings = parse_sections(sections_raw)
                         result["meetings"] = meetings
 
@@ -215,6 +216,42 @@ def run(
                             if not m.is_complete:
                                 parts.append(f"P{p_num}: {', '.join(m.missing)}")
                         result["detail_kekurangan"] = " | ".join(parts) if parts else "-"
+
+                        # ── Validasi jadwal quiz P1 ───────────────────────────
+                        p1 = meetings.get(1)
+                        jadwal_str = row.get("jadwal", "")
+                        class_day = parse_class_day(jadwal_str)
+
+                        if (
+                            p1 is not None
+                            and p1.has_quiz
+                            and p1.quiz_instance_id is not None
+                            and class_day is not None
+                            and config.SEMESTER_START_WEEK is not None
+                        ):
+                            quizzes = client.get_quizzes_by_course(course["id"])
+                            time.sleep(_API_RATE_DELAY)
+
+                            # Cari data quiz P1 berdasarkan instance ID
+                            p1_quiz = next(
+                                (q for q in quizzes if q.get("id") == p1.quiz_instance_id),
+                                None,
+                            )
+                            if p1_quiz:
+                                exp_open, exp_close = compute_expected_dates(
+                                    class_day, 1, config.SEMESTER_START_WEEK
+                                )
+                                result["quiz_jadwal_p1"] = validate_quiz_dates(
+                                    p1_quiz.get("timeopen"),
+                                    p1_quiz.get("timeclose"),
+                                    exp_open,
+                                    exp_close,
+                                )
+                            else:
+                                logger.debug(
+                                    "Quiz instance %s tidak ditemukan di course %s",
+                                    p1.quiz_instance_id, course["id"]
+                                )
 
                 except MoodleAPIError as exc:
                     result["match_status"] = STATUS_ERROR
