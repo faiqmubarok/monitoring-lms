@@ -38,7 +38,10 @@ class MeetingContent:
     has_ppt: bool = False
     has_video: bool = False
     has_quiz: bool = False
-    modules_raw: list[dict] = field(default_factory=list)  # raw module data untuk debug
+    quiz_instance_id: int | None = None          # instance ID quiz
+    timeopen: int | None = None                  # epoch timestamp buka
+    timeclose: int | None = None                 # epoch timestamp tutup
+    modules_raw: list[dict] = field(default_factory=list)
 
     @property
     def is_complete(self) -> bool:
@@ -104,8 +107,10 @@ class CourseCheckResult:
 # ── PPT Detector ─────────────────────────────────────────────────────────────
 
 _PPT_EXTENSIONS = {".ppt", ".pptx"}
+# Hanya kata yang benar-benar spesifik ke PPT/slide
+# 'materi' dan 'presentasi' dihapus karena terlalu ambigu
 _PPT_KEYWORDS = re.compile(
-    r"\b(ppt|powerpoint|materi|slide|presentasi)\b", re.IGNORECASE
+    r"\b(ppt|powerpoint|slide)\b", re.IGNORECASE
 )
 _PPT_MIMETYPES = {
     "application/vnd.ms-powerpoint",
@@ -121,6 +126,7 @@ def detect_ppt(module: dict) -> bool:
     """
     Deteksi PPT/slide presentasi.
     Prioritas: mimetype → ekstensi → Google Slides URL → keyword nama modul.
+    Keyword fallback HANYA untuk kata yang benar-benar spesifik (ppt, powerpoint, slide).
     """
     modname = module.get("modname", "").lower()
     module_name = module.get("name", "")
@@ -140,11 +146,13 @@ def detect_ppt(module: dict) -> bool:
         if fileurl and _GOOGLE_SLIDES_URL.search(fileurl):
             return True
 
-    # Untuk modname=url tanpa contents (kadang fileurl ada di level module)
-    if modname == "url" and _GOOGLE_SLIDES_URL.search(module.get("url", "")):
-        return True
+    # Untuk modname=url atau resource (dosen share link langsung)
+    module_url = module.get("url", "")
+    if modname in ("url", "resource") and module_url:
+        if _GOOGLE_SLIDES_URL.search(module_url):
+            return True
 
-    # Fallback: keyword di nama modul
+    # Fallback: keyword KETAT di nama modul (hanya ppt/powerpoint/slide)
     if _PPT_KEYWORDS.search(module_name):
         return True
 
@@ -156,7 +164,8 @@ def detect_ppt(module: dict) -> bool:
 _VIDEO_MODNAMES = {"videotime", "hvp", "mediagallery"}
 _VIDEO_MIMETYPES = re.compile(r"^video/")
 _VIDEO_EXTENSIONS = {".mp4", ".avi", ".mkv", ".mov", ".webm", ".flv", ".wmv"}
-_VIDEO_KEYWORDS = re.compile(r"\bvid[ei]o\b", re.IGNORECASE)
+# Keyword 'video' di nama modul DIHAPUS sebagai fallback — terlalu longgar.
+# Nama modul saja bukan bukti bahwa konten video benar-benar ada.
 _VIDEO_PLATFORMS = re.compile(
     r"(youtube\.com|youtu\.be|vimeo\.com)", re.IGNORECASE
 )
@@ -169,11 +178,11 @@ _GOOGLE_DRIVE_FILE = re.compile(
 def detect_video(module: dict) -> bool:
     """
     Deteksi video.
-    Prioritas: modname khusus → mimetype → ekstensi → Google Drive file URL
-               → platform video → keyword nama modul.
+    Prioritas: modname khusus → mimetype → ekstensi → platform video URL
+               → Google Drive file URL.
+    TIDAK menggunakan keyword nama modul sebagai fallback (terlalu longgar).
     """
     modname = module.get("modname", "").lower()
-    module_name = module.get("name", "")
 
     # Modul khusus video
     if modname in _VIDEO_MODNAMES:
@@ -193,8 +202,8 @@ def detect_video(module: dict) -> bool:
         if fileurl and (_VIDEO_PLATFORMS.search(fileurl) or _GOOGLE_DRIVE_FILE.search(fileurl)):
             return True
 
-    # URL module — cek url di level module juga
-    if modname == "url":
+    # URL/resource module — cek url di level module juga
+    if modname in ("url", "resource"):
         module_url = module.get("url", "")
         if module_url and (
             _VIDEO_PLATFORMS.search(module_url)
@@ -202,10 +211,7 @@ def detect_video(module: dict) -> bool:
         ):
             return True
 
-    # Fallback: keyword nama modul
-    if _VIDEO_KEYWORDS.search(module_name):
-        return True
-
+    # Tidak ada keyword fallback — deteksi hanya berdasarkan konten nyata
     return False
 
 
@@ -312,7 +318,25 @@ def parse_sections(sections_raw: list[dict]) -> dict[int, MeetingContent]:
                 logger.debug("P%d Video: %s", pertemuan, module.get("name"))
             if not meeting.has_quiz and detect_quiz(module):
                 meeting.has_quiz = True
-                logger.debug("P%d Quiz: %s", pertemuan, module.get("name"))
+                meeting.quiz_instance_id = module.get("instance")
+                
+                # Coba ambil timeopen/timeclose dari customdata
+                custom_data_str = module.get("customdata")
+                if custom_data_str:
+                    import json
+                    try:
+                        cdata = json.loads(custom_data_str)
+                        if "timeopen" in cdata:
+                            meeting.timeopen = int(cdata["timeopen"])
+                        if "timeclose" in cdata:
+                            meeting.timeclose = int(cdata["timeclose"])
+                    except (ValueError, TypeError):
+                        pass
+                
+                logger.debug(
+                    "P%d Quiz: %s (open=%s, close=%s)", 
+                    pertemuan, module.get("name"), meeting.timeopen, meeting.timeclose
+                )
 
         meetings[pertemuan] = meeting
 

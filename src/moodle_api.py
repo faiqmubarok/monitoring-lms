@@ -206,6 +206,7 @@ class MoodleClient:
 
         return result
 
+
     def close(self) -> None:
         """Tutup HTTP session."""
         self._session.close()

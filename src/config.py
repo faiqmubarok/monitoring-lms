@@ -5,6 +5,7 @@ Token Moodle tidak pernah dicetak ke log atau output.
 """
 
 import os
+from datetime import date
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -34,6 +35,21 @@ def get_moodle_token() -> str:
 
 # ── Semester ─────────────────────────────────────────────────────────────────
 SEMESTER_CODE: str = _get_optional("SEMESTER_CODE", "20261")
+
+# Tanggal Senin minggu pertama semester — dipakai untuk validasi jadwal quiz.
+# Format: YYYY-MM-DD (harus hari Senin)
+_raw_start_week = _get_optional("SEMESTER_START_WEEK", "")
+try:
+    SEMESTER_START_WEEK: date | None = (
+        date.fromisoformat(_raw_start_week) if _raw_start_week else None
+    )
+except ValueError:
+    import logging
+    logging.getLogger(__name__).warning(
+        "SEMESTER_START_WEEK '%s' tidak valid (format: YYYY-MM-DD). "
+        "Fitur cek jadwal quiz dinonaktifkan.", _raw_start_week
+    )
+    SEMESTER_START_WEEK = None
 
 # ── Filter ───────────────────────────────────────────────────────────────────
 _raw_rooms = _get_optional("ALLOWED_ROOMS", "R2A,R2B,R2C")

@@ -144,7 +144,7 @@ _INFO_HEADERS = [
 _N_INFO = len(_INFO_HEADERS)
 
 # Kolom setelah pertemuan
-_TAIL_HEADERS = ["Status LMS", "Detail Kekurangan", "Last Check"]
+_TAIL_HEADERS = ["Jadwal Quiz P1", "Status LMS", "Detail Kekurangan", "Last Check"]
 
 # Lebar tetap untuk kolom info
 _INFO_WIDTHS: dict[str, float] = {
@@ -211,9 +211,10 @@ def _write_data_terbaru(ws, results: list[dict]) -> None:
 
     tail_col_map = _write_headers(ws)
 
-    status_col  = tail_col_map["Status LMS"]
-    detail_col  = tail_col_map["Detail Kekurangan"]
-    lastchk_col = tail_col_map["Last Check"]
+    status_col    = tail_col_map["Status LMS"]
+    detail_col    = tail_col_map["Detail Kekurangan"]
+    lastchk_col   = tail_col_map["Last Check"]
+    quizjdwl_col  = tail_col_map["Jadwal Quiz P1"]
 
     for row_idx, item in enumerate(results, start=3):
         meetings = item.get("meetings", {})
@@ -261,6 +262,24 @@ def _write_data_terbaru(ws, results: list[dict]) -> None:
             col_start += 3
 
         # ── Tail columns ──────────────────────────────────────────────────────
+        # Jadwal Quiz P1
+        quiz_valid = item.get("quiz_jadwal_p1")  # True / False / None
+        cell_qjdwl = ws.cell(row=row_idx, column=quizjdwl_col)
+        if quiz_valid is True:
+            cell_qjdwl.value = CHECKLIST_YES
+            cell_qjdwl.fill = _fill(_COLORS["CELL_YES"]["bg"])
+            cell_qjdwl.font = _font(_COLORS["CELL_YES"]["font"], bold=True, size=10)
+        elif quiz_valid is False:
+            cell_qjdwl.value = CHECKLIST_NO
+            cell_qjdwl.fill = _fill(_COLORS["CELL_NO"]["bg"])
+            cell_qjdwl.font = _font(_COLORS["CELL_NO"]["font"], bold=True, size=10)
+        else:
+            cell_qjdwl.value = "⚠"
+            cell_qjdwl.fill = _fill("FFF2CC")  # kuning muda — tidak dicek
+            cell_qjdwl.font = _font("7F6000", size=10)
+        cell_qjdwl.alignment = Alignment(horizontal="center", vertical="center")
+        cell_qjdwl.border = _border
+
         _style_status(ws.cell(row=row_idx, column=status_col), lms_status)
         _style_data(ws.cell(row=row_idx, column=detail_col),
                     item.get("detail_kekurangan", ""), wrap=True)
@@ -297,6 +316,7 @@ def _write_data_terbaru(ws, results: list[dict]) -> None:
     ws.column_dimensions[get_column_letter(detail_col)].width = 42
     ws.column_dimensions[get_column_letter(status_col)].width = 18
     ws.column_dimensions[get_column_letter(lastchk_col)].width = 16
+    ws.column_dimensions[get_column_letter(quizjdwl_col)].width = 14
 
 
 # ── RIWAYAT CEK ───────────────────────────────────────────────────────────────
