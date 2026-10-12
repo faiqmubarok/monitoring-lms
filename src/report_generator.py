@@ -139,7 +139,7 @@ def _auto_width(ws, col_widths: dict[int, float] | None = None,
 _INFO_HEADERS = [
     "No", "Kelas", "Matakuliah", "SKS", "SMT",
     "Jadwal", "Dosen Pengajar", "Prodi", "Ruangan", "Kampus",
-    "Status", "Status KRS", "Moodle Course", "Course ID",
+    "Status", "Status KRS", "Dosen Sesuai", "Moodle Course", "Course ID",
 ]
 _N_INFO = len(_INFO_HEADERS)
 
@@ -151,7 +151,7 @@ _INFO_WIDTHS: dict[str, float] = {
     "No": 4, "Kelas": 8, "Matakuliah": 32, "SKS": 4, "SMT": 4,
     "Jadwal": 18, "Dosen Pengajar": 28, "Prodi": 26,
     "Ruangan": 7, "Kampus": 14, "Status": 8, "Status KRS": 13,
-    "Moodle Course": 30, "Course ID": 9,
+    "Dosen Sesuai": 7, "Moodle Course": 30, "Course ID": 9,
 }
 
 # Lebar kolom checklist (sempit karena hanya ✅/❌)
@@ -235,11 +235,12 @@ def _write_data_terbaru(ws, results: list[dict]) -> None:
             item.get("kampus", ""),
             item.get("status_kelas", ""),
             item.get("match_status", ""),
+            item.get("dosen_sesuai", "N/A"),  # ✅ / ❌ / N/A
             item.get("course_fullname", "") or item.get("moodle_shortname", ""),
             item.get("course_id", ""),
         ]
         for col_idx, val in enumerate(info_values, start=1):
-            center = col_idx in (1, 4, 5, 9, 11)  # No, SKS, SMT, Ruangan, Status
+            center = col_idx in (1, 4, 5, 9, 11, 13)  # No, SKS, SMT, Ruangan, Status, Dosen Sesuai
             _style_data(ws.cell(row=row_idx, column=col_idx), val, center=center)
 
         # Style "Status KRS" kolom 12 (setelah penambahan Status di kolom 11)

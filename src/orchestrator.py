@@ -51,6 +51,7 @@ from src.excel_reader import (
 from src.moodle_api import MoodleAPIError, MoodleClient, NOT_FOUND
 from src.report_generator import generate_report
 from src.quiz_schedule import parse_class_day, compute_expected_dates, validate_quiz_dates
+from src.dosen_validator import get_dosen_status
 from src import config
 
 logger = logging.getLogger(__name__)
@@ -93,7 +94,8 @@ def run(
         f"   ✅ {read_summary['total_rows']} baris total | "
         f"[green]{read_summary['filtered']} lolos filter[/green] | "
         f"{read_summary['skipped_online']} skip online | "
-        f"{read_summary['skipped_wrong_room']} skip ruangan lain\n"
+        f"{read_summary['skipped_wrong_room']} skip ruangan lain | "
+        f"{read_summary['skipped_closed']} skip tutup\n"
     )
 
     if not filtered_rows:
@@ -155,6 +157,7 @@ def run(
                     "match_error": None,
                     "meetings": {},
                     "detail_kekurangan": "",
+                    "dosen_sesuai": None,  # ✅ / ❌ / N/A
                     "quiz_jadwal_p1": None,   # None=tidak dicek, True=sesuai, False=salah
                     "last_check": now_str,
                 }
@@ -164,6 +167,7 @@ def run(
                     result["match_status"] = STATUS_BELUM_KRS
                     result["lms_status"] = STATUS_BELUM_KRS
                     result["detail_kekurangan"] = "-"
+                    result["dosen_sesuai"] = "N/A"
                     cnt_belum_krs += 1
                     progress.advance(task)
                     results.append(result)
@@ -178,6 +182,7 @@ def run(
                         result["match_status"] = STATUS_NOT_FOUND
                         result["lms_status"] = STATUS_NOT_FOUND
                         result["detail_kekurangan"] = "-"
+                        result["dosen_sesuai"] = "N/A"
                         cnt_not_found += 1
                         progress.advance(task)
                         results.append(result)
@@ -189,6 +194,13 @@ def run(
                     result["course_shortname"] = course["shortname"]
                     result["course_url"] = course["url"]
                     cnt_found += 1
+
+                    # ── Validasi dosen ────────────────────────────────────────
+                    result["dosen_sesuai"] = get_dosen_status(
+                        dosen_excel=dosen,
+                        course_fullname=course["fullname"],
+                        course_found=True
+                    )
 
                     # ── Cek konten P1–P14 ─────────────────────────────────────
                     sections_raw = client.get_course_contents(course["id"])

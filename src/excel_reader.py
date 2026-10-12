@@ -214,6 +214,7 @@ def read_and_filter(filepath: str | Path) -> tuple[list[dict], dict]:
     skipped_no_kode = 0
     skipped_online = 0
     skipped_wrong_room = 0
+    skipped_closed = 0
     filtered_rows: list[dict] = []
 
     for row in rows_raw[header_idx + 1 :]:
@@ -244,9 +245,16 @@ def read_and_filter(filepath: str | Path) -> tuple[list[dict], dict]:
             skipped_wrong_room += 1
             continue
 
+        # Filter 3: Status kelas harus "Buka"
+        status_kelas = row_data.get("status_kelas", "").strip()
+        if status_kelas.lower() != "buka":
+            skipped_closed += 1
+            continue
+
         # Normalisasi
         row_data["kode_kelas"] = kode_kelas.upper()
         row_data["ruangan_kelas"] = ruangan_kelas
+        row_data["status_kelas"] = status_kelas
         row_data["matakuliah"] = row_data.get("matakuliah", "").strip()
         row_data["dosen"] = row_data.get("dosen", "").strip()
 
@@ -258,14 +266,16 @@ def read_and_filter(filepath: str | Path) -> tuple[list[dict], dict]:
         "skipped_no_kode": skipped_no_kode,
         "skipped_online": skipped_online,
         "skipped_wrong_room": skipped_wrong_room,
+        "skipped_closed": skipped_closed,
     }
 
     logger.info(
-        "Hasil baca: total=%d | lolos=%d | skip_online=%d | skip_ruangan=%d",
+        "Hasil baca: total=%d | lolos=%d | skip_online=%d | skip_ruangan=%d | skip_tutup=%d",
         total_rows,
         len(filtered_rows),
         skipped_online,
         skipped_wrong_room,
+        skipped_closed,
     )
 
     return filtered_rows, summary

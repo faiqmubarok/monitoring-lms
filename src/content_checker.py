@@ -164,8 +164,10 @@ def detect_ppt(module: dict) -> bool:
 _VIDEO_MODNAMES = {"videotime", "hvp", "mediagallery"}
 _VIDEO_MIMETYPES = re.compile(r"^video/")
 _VIDEO_EXTENSIONS = {".mp4", ".avi", ".mkv", ".mov", ".webm", ".flv", ".wmv"}
-# Keyword 'video' di nama modul DIHAPUS sebagai fallback — terlalu longgar.
-# Nama modul saja bukan bukti bahwa konten video benar-benar ada.
+# Keyword untuk nama module yang mengandung video (termasuk typo umum "vidio")
+_VIDEO_KEYWORDS = re.compile(
+    r"\b(video|vidio)\b", re.IGNORECASE
+)
 _VIDEO_PLATFORMS = re.compile(
     r"(youtube\.com|youtu\.be|vimeo\.com)", re.IGNORECASE
 )
@@ -178,11 +180,20 @@ _GOOGLE_DRIVE_FILE = re.compile(
 def detect_video(module: dict) -> bool:
     """
     Deteksi video.
-    Prioritas: modname khusus → mimetype → ekstensi → platform video URL
-               → Google Drive file URL.
-    TIDAK menggunakan keyword nama modul sebagai fallback (terlalu longgar).
+    Prioritas: 
+    1. Keyword 'video'/'vidio' di nama module (primary indicator dari dosen USI)
+    2. Modname khusus video (videotime, hvp, mediagallery)
+    3. Mimetype video/* atau ekstensi video
+    4. Platform video URL (YouTube, Vimeo)
+    5. Google Drive file URL (hanya jika nama module mengandung keyword video)
     """
     modname = module.get("modname", "").lower()
+    module_name = module.get("name", "")
+
+    # Primary: keyword 'video' atau 'vidio' di nama module
+    # Ini convention yang dipakai dosen USI (e.g., "Video Pertemuan 1", "Vidio P2")
+    if _VIDEO_KEYWORDS.search(module_name):
+        return True
 
     # Modul khusus video
     if modname in _VIDEO_MODNAMES:
@@ -199,19 +210,15 @@ def detect_video(module: dict) -> bool:
         for ext in _VIDEO_EXTENSIONS:
             if filename.endswith(ext):
                 return True
-        if fileurl and (_VIDEO_PLATFORMS.search(fileurl) or _GOOGLE_DRIVE_FILE.search(fileurl)):
+        if fileurl and _VIDEO_PLATFORMS.search(fileurl):
             return True
 
     # URL/resource module — cek url di level module juga
     if modname in ("url", "resource"):
         module_url = module.get("url", "")
-        if module_url and (
-            _VIDEO_PLATFORMS.search(module_url)
-            or _GOOGLE_DRIVE_FILE.search(module_url)
-        ):
+        if module_url and _VIDEO_PLATFORMS.search(module_url):
             return True
 
-    # Tidak ada keyword fallback — deteksi hanya berdasarkan konten nyata
     return False
 
 
