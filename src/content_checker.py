@@ -125,17 +125,23 @@ _GOOGLE_SLIDES_URL = re.compile(
 def detect_ppt(module: dict) -> bool:
     """
     Deteksi PPT/slide presentasi.
-    Prioritas: mimetype → ekstensi → Google Slides URL → keyword nama modul.
-    Keyword fallback HANYA untuk kata yang benar-benar spesifik (ppt, powerpoint, slide).
+    Prioritas: keyword nama modul → mimetype → ekstensi → Google Slides URL.
+    Keyword check diprioritaskan agar modul label/text-area (yang tidak punya
+    fileurl valid) langsung terdeteksi via nama — konsisten dengan detect_video().
     """
     modname = module.get("modname", "").lower()
     module_name = module.get("name", "")
+
+    # Primary: keyword KETAT di nama modul (ppt/powerpoint/slide)
+    # Ini menangani label/text-area activity yang tidak punya fileurl
+    if _PPT_KEYWORDS.search(module_name):
+        return True
 
     contents = module.get("contents", [])
     for content in contents:
         mimetype = content.get("mimetype", "").lower()
         filename = content.get("filename", "").lower()
-        fileurl  = content.get("fileurl", "")
+        fileurl  = content.get("fileurl") or ""  # guard None: label activity bisa return null
 
         if mimetype in _PPT_MIMETYPES:
             return True
@@ -151,10 +157,6 @@ def detect_ppt(module: dict) -> bool:
     if modname in ("url", "resource") and module_url:
         if _GOOGLE_SLIDES_URL.search(module_url):
             return True
-
-    # Fallback: keyword KETAT di nama modul (hanya ppt/powerpoint/slide)
-    if _PPT_KEYWORDS.search(module_name):
-        return True
 
     return False
 
